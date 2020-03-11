@@ -1,0 +1,52 @@
+*HEADING
+Mises Plasticity, Uniaxial Tension, C3D8R
+VUMAT
+*NODE,NSET=ALLN
+1,0.,0.,0.
+2,1.,0.,0.
+3,1.,1.,0.
+4,0.,1.,0.
+5,0.,0.,1.
+6,1.,0.,1.
+7,1.,1.,1.
+8,0.,1.,1.
+*ELEMENT,TYPE=C3D8R,ELSET=ALLE
+1,1,2,3,4,5,6,7,8
+*SOLID SECTION,ELSET=ALLE,MATERIAL=ALLE
+*MATERIAL,NAME=ALLE
+*DEPVAR
+28, 
+** properties are hypothetical 
+*USER MATERIAL,CONST=25
+0.001,5.,5.13e+07,2.23e+06,2.23e+06,850000.,850000.,570000.
+0.3,0.3,0.35,590000.,210000.,21670.,50000.,62730.
+12300.,123.4,123.4,1.23,1.23,4.56,0.5,0.5
+0.5,
+*density
+0.04,
+*BOUNDARY
+1,PINNED
+2,2
+5,2
+6,2
+4,1
+5,1
+8,1
+**2,3
+**3,3
+**4,3
+*AMPLITUDE, NAME=RAMP
+0.0,0.0,1.e-1,1.0
+*STEP
+*dynamic, explicit
+ ,1.e-1
+*DLOAD, AMP=RAMP
+1,P2,200000.0
+*OUTPUT,FIELD
+*NODE OUTPUT
+ U,
+*ELEMENT OUTPUT
+ S,
+ SDV,
+*output, history, var=preselect
+*END STEP
