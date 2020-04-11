@@ -33,7 +33,8 @@ C
 c-----------------------------------------------------------------
 c Extract material properties from props = Engineering Constant
 c-----------------------------------------------------------------
-      parameter (zero=0.d0,one=1.d0,two=2.d0,half=0.5d0,small=1.d-12)
+      parameter (zero=0.d0,one=1.d0,two=2.d0,half=0.5d0,
+     1          small=1.d-12, tol=0.9d0)
 C Temporary arrays
       real stiff(9)
       real E110,E220,E330,G120,G130,G230,X_t,X_c,Y_t,Y_
@@ -86,7 +87,13 @@ c
         stiff(9)=G130
 c-----------------------------------------------------------------
 c-----------------------------------------------------------------
+        print *, ''
+        print *, 'total time', totalTime
         do k=1,nblock
+C           if (stateNew(k,29) .eq. zero) then 
+C            print *, 'skipped k', k
+C               go to 1000
+C           end if
           if ( stepTime .eq. zero ) then  ! step time =0
 c-----------------------------------------------------------------
 c t=0, update strain 
@@ -152,6 +159,8 @@ c
             stateNew(k,26)=stateold(k,26)! d1
             stateNew(k,27)=stateold(k,27)! d2
             stateNew(k,28)=stateold(k,28)! d3
+c
+            stateNew(k,29)=stateold(k,29)! deletion control
 c-----------------------------------------------------------------
 c  t!= 0   update strain 
 c
@@ -164,8 +173,6 @@ c
 c
 c-----------------------------------------------------------------
            if (stateOld(k,13).eq.zero) then ! if no damage
-c
-              print *, 'damage=0'
 c-----------------------------------------------------------------
 c  t!=0, d=0   stress update
 c
@@ -185,7 +192,7 @@ c
            stressNew(k,6)= stiff(9)*e13
 c
 c-----------------------------------------------------------------
-c t != 0 d=0    damage_check
+c t != 0 d=0    damage_check only
        if (e11 .gt. zero) then
           if (((e11/(X_t/E110))**two) .gt. one) then
             stateNew(k,13)=one
@@ -227,40 +234,37 @@ c
         end if
 c
 c-----------------------------------------------------------------
-c t!=0 d=0    update cri_strain and cri_stress
+c t!=0 d=0  update cri_strain and cri_stress
         if (stateNew(k,26) .eq. zero) then ! if first criteria fails
-          stateNew(k,14)=e11
-          stateNew(k,20)=stressNew(k,1)
+          stateNew(k,14)=abs(e11)
+          stateNew(k,20)=abs(stressNew(k,1))
         end if
 c
         if (stateNew(k,27) .eq. zero) then ! if second criteria fails
-          stateNew(k,15)=e22
-          stateNew(k,17)=e12
-          stateNew(k,18)=e23
+          stateNew(k,15)=abs(e22)
+          stateNew(k,17)=abs(e12)
+          stateNew(k,18)=abs(e23)
 c
-          stateNew(k,21)=stressNew(k,2)
-          stateNew(k,23)=stressNew(k,4)
-          stateNew(k,24)=stressNew(k,5)
+          stateNew(k,21)=abs(stressNew(k,2))
+          stateNew(k,23)=abs(stressNew(k,4))
+          stateNew(k,24)=abs(stressNew(k,5))
         end if
 c
         if (stateNew(k,28) .eq. zero) then ! if thired criteria fails
-          stateNew(k,16)=e33
-          stateNew(k,19)=e13
-          stateNew(k,18)=e23
+          stateNew(k,16)=abs(e33)
+          stateNew(k,19)=abs(e13)
+          stateNew(k,18)=abs(e23)
 c
-          stateNew(k,22)=stressNew(k,3)
-          stateNew(k,25)=stressNew(k,6)
-          stateNew(k,24)=stressNew(k,5)
+          stateNew(k,22)=abs(stressNew(k,3))
+          stateNew(k,25)=abs(stressNew(k,6))
+          stateNew(k,24)=abs(stressNew(k,5))
         end if
       end if ! till here damage .eq. zero
 c t!=0 and (d=0 end of if loop) 
 c-----------------------------------------------------------------
         if (stateNew(k,13).ne.zero) then ! damage occures
-          print *,''
           print *,'***************damage occured************'
 c d!=0  damage variables computation 
-c      real dn1,dn2,dn3,ds12,ds13,ds23_22,ds23_33,ds23,temp,
-c     3    de11,de22,de33,de12,de23,de13,t11,t22,t33,t12,t23,t13,G
         dn1=zero
         dn2=zero
         dn3=zero
@@ -276,11 +280,11 @@ c     3    de11,de22,de33,de12,de23,de13,t11,t22,t33,t12,t23,t13,G
             G=G_fc
           end if
           t11=stateNew(k,20)
-          de11=stateNew(k,1) - stateNew(k,14)
+          de11=abs(stateNew(k,1)) - stateNew(k,14)
           if (de11 .gt. small) then
-            if (abs(de11) .lt. (two*G/(charLength(k)*abs(t11)))) then
+            if (de11 .lt. (two*G/(charLength(k)*t11))) then
             temp=(t11/(de11*E110))
-     1        -((charLength(k)*t11*t11*half)/(G*E110))
+     1        -((charLength(k)*(t11**two)*half)/(G*E110))
             dn1=one/(one+temp)
             else
             dn1=one
@@ -297,31 +301,31 @@ c
           t22=stateNew(k,21)
           t12=stateNew(k,23)
           t23=stateNew(k,24)
-          de22=stateNew(k,2) - stateNew(k,15)
-          de12=stateNew(k,4) - stateNew(k,17)
-          de23=stateNew(k,5) - stateNew(k,18)
+          de22=abs(stateNew(k,2)) - stateNew(k,15)
+          de12=abs(stateNew(k,4)) - stateNew(k,17)
+          de23=abs(stateNew(k,5)) - stateNew(k,18)
           if (de22 .gt. small) then
-            if (abs(de22) .lt. (two*G/(charLength(k)*abs(t22)))) then
+            if (de22 .lt. (two*G/(charLength(k)*t22))) then
             temp=(t22/(de22*E220))
-     1       -((charLength(k)*t22*t22*half)/(G*E220))
+     1       -((charLength(k)*(t22**two)*half)/(G*E220))
             dn2=one/(one+temp)
             else
             dn2=one
             end if
           end if
           if (de12 .gt. small) then
-           if (abs(de12) .lt. (two*G_II/(charLength(k)*abs(t12)))) then
+           if (de12 .lt. (two*G_II/(charLength(k)*t12))) then
              temp=(t12/(de12*G120))
-     1       -((charLength(k)*t12*t12*half)/(G_II*G120))
+     1       -((charLength(k)*(t12**two)*half)/(G_II*G120))
             ds12=one/(one+temp)
             else
             ds12=one
             end if
           end if
           if (de23 .gt. small) then
-           if (abs(de23) .lt. (two*G_II/(charLength(k)*abs(t23)))) then
+           if (de23 .lt. (two*G_II/(charLength(k)*t23))) then
             temp=(t23/(de23*G230))
-     1      - ((charLength(k)*t23*t23*half)/(G_II*G230))
+     1      - ((charLength(k)*(t23**two)*half)/(G_II*G230))
             ds23_22=one/(one+temp)
             else
             ds23_22=one
@@ -338,31 +342,31 @@ c
           t33=stateNew(k,22)
           t23=stateNew(k,24)
           t13=stateNew(k,25)
-          de33=stateNew(k,3) - stateNew(k,16)
-          de23=stateNew(k,5) - stateNew(k,18)
-          de13=stateNew(k,6) - stateNew(k,19)
-          if (abs(de33) .gt. small) then 
-            if (abs(de33) .lt. (two*G/(charLength(k)*abs(t33)))) then
+          de33=abs(stateNew(k,3)) - stateNew(k,16)
+          de23=abs(stateNew(k,5)) - stateNew(k,18)
+          de13=abs(stateNew(k,6)) - stateNew(k,19)
+          if (de33 .gt. small) then 
+            if (de33 .lt. (two*G/(charLength(k)*t33))) then
             temp=(t33/(de33*E330))
-     1      -((charLength(k)*t33*t33*half)/(G*E330))
+     1      -((charLength(k)*(t33**two)*half)/(G*E330))
             dn3=one/(one+temp)
             else
             dn3=one
             end if
           end if
-          if (abs(de23).gt.small) then
-           if (abs(de23) .lt. (two*G_II/(charLength(k)*abs(t23)))) then
+          if (de23.gt.small) then
+           if (de23 .lt. (two*G_II/(charLength(k)*t23))) then
             temp=(t23/(de23*G230))
-     1       -((charLength(k)*t23*t23*half)/(G_II*G230))
+     1       -((charLength(k)*(t23**two)*half)/(G_II*G230))
             ds23_33=one/(one+temp)
            else
             ds23_33=one
            end if
           end if
-          if ((abs(de13) .gt. small)) then
-           if (abs(de13) .lt. (two*G_II/(charLength(k)*abs(t13)))) then
+          if ((de13 .gt. small)) then
+           if (de13 .lt. (two*G_II/(charLength(k)*t13))) then
             temp=(t13/(de13*G130))
-     1        -((charLength(k)*t13*t13*half)/(G_II*G130))
+     1        -((charLength(k)*(t13**two)*half)/(G_II*G130))
             ds13=one/(one+temp)
            else
             ds13=one
@@ -376,20 +380,19 @@ c
         stateNew(k,9)=max(dn3,stateOld(k,9))
         temp=one-stateNew(k,7)
 c
-        stateNew(k,10)=max(stateOld(k,10),(one-(temp*
-     1    (one-alpha*stateNew(k,8))*(one - beta*ds12))))
+        stateNew(k,10)=max(stateOld(k,10),(one-(temp
+     1    *(one-alpha*stateNew(k,8))*(one - beta*ds12))))
 c
         stateNew(k,11)=max(stateOld(k,11),
-     1                 (one-(temp*(one-alpha*stateNew(k,8))*
-     2                 (one-alpha*stateNew(k,9))*(one-beta*ds23))))
+     1                  (one-(temp*(one-alpha*stateNew(k,8))
+     2                 *(one-alpha*stateNew(k,9))*(one-beta*ds23))))
 c
-        stateNew(k,12)=max(stateOld(k,12),
-     1                 (one-(temp*
-     2                 (one-alpha*stateNew(k,9))*
-     3                 (one-beta*ds13))))
+        stateNew(k,12)=max(stateOld(k,12),(one-(temp
+     1                 *(one-alpha*stateNew(k,9))
+     2                 *(one-beta*ds13))))
         stateNew(k,13)=one
 c-----------------------------------------------------------------
-c d=0    update stiffness matrix
+c d!=0    update stiffness matrix
 c      real delta,dd1,dd2,dd3,dd4,dd5,dd6
 c      
         dd1=one-stateNew(k,7)
@@ -413,7 +416,7 @@ c
         stiff(7)=dd4*G120
         stiff(8)=dd5*G230
         stiff(9)=dd6*G130
-        print *, 'stiff',stiff
+        print *, 'k=', k
         print *, 'damage', stateNew(k,7:12)
 c
 c-----------------------------------------------------------------
@@ -425,9 +428,9 @@ c    stress update
             e23=stateNew(k,5)
             e13=stateNew(k,6)
 c
-           stressNew(k,1)= (stiff(1)*e11) + (stiff(4)*e22) +(stiff(6)*e33) 
-           stressNew(k,2)= (stiff(4)*e11) + (stiff(2)*e22) +(stiff(5)*e33) 
-           stressNew(k,3)= (stiff(6)*e11) + (stiff(5)*e22) +(stiff(3)*e33)
+         stressNew(k,1)= (stiff(1)*e11) + (stiff(4)*e22) +(stiff(6)*e33) 
+         stressNew(k,2)= (stiff(4)*e11) + (stiff(2)*e22) +(stiff(5)*e33) 
+         stressNew(k,3)= (stiff(6)*e11) + (stiff(5)*e22) +(stiff(3)*e33)
 c
            stressNew(k,4)= stiff(7)*e12
            stressNew(k,5)= stiff(8)*e23 
@@ -484,45 +487,53 @@ c
 c-----------------------------------------------------------------
 c    update cri_strain and cri_stress
         if (stateNew(k,26) .eq. zero) then ! if first criteria fails
-          stateNew(k,14)=e11
-          stateNew(k,20)=stressNew(k,1)
+          stateNew(k,14)=abs(e11)
+          stateNew(k,20)=abs(stressNew(k,1))
         end if
 c
         if (stateNew(k,27) .eq. zero) then ! if second criteria fails
-          stateNew(k,15)=e22
-          stateNew(k,17)=e12
-          stateNew(k,18)=e23
+          stateNew(k,15)=abs(e22)
+          stateNew(k,17)=abs(e12)
+          stateNew(k,18)=abs(e23)
 c
-          stateNew(k,21)=stressNew(k,2)
-          stateNew(k,23)=stressNew(k,4)
-          stateNew(k,24)=stressNew(k,5)
+          stateNew(k,21)=abs(stressNew(k,2))
+          stateNew(k,23)=abs(stressNew(k,4))
+          stateNew(k,24)=abs(stressNew(k,5))
         end if
 c
         if (stateNew(k,28) .eq. zero) then ! if thired criteria fails
-          stateNew(k,16)=e33
-          stateNew(k,19)=e13
-          stateNew(k,18)=e23
+          stateNew(k,16)=abs(e33)
+          stateNew(k,19)=abs(e13)
+          stateNew(k,18)=abs(e23)
 c
-          stateNew(k,22)=stressNew(k,3)
-          stateNew(k,25)=stressNew(k,6)
-          stateNew(k,24)=stressNew(k,5)
+          stateNew(k,22)=abs(stressNew(k,3))
+          stateNew(k,25)=abs(stressNew(k,6))
+          stateNew(k,24)=abs(stressNew(k,5))
         end if
 
       end if ! damage occured
 c
+c if all damage variables are one, delete the element. 
+      if ((stateNew(k,7) .gt. tol) .or. (stateNew(k,8).gt.tol)
+     1  .or. (stateNew(k,9).gt.tol) .or. (stateNew(k,10).gt.tol)
+     2  .or. (stateNew(k,11).gt.tol) .or. (stateNew(k,12).gt.tol)) then
+        stateNew(k,29)=zero
+        print*,'Element deleted'
+      end if
 c    Eneergy update
 c         real new_energy
-       new_energy=half*((stressOld(k,1)+stressNew(k,1))*strainInc(k,1)+
-     3   (stressOld(k,2) + stressNew(k,2))*strainInc(k,2) +
-     4   (stressOld(k,3) + stressNew(k,3))*strainInc(k,3) +
-     5   (stressOld(k,4) + stressNew(k,4))*strainInc(k,4)*two +
-     6   (stressOld(k,5) + stressNew(k,5))*strainInc(k,5)*two +
-     7   (stressOld(k,6) + stressNew(k,6))*strainInc(k,6)*two )
+       new_energy=half*((stressOld(k,1)+stressNew(k,1))*strainInc(k,1)
+     3   +(stressOld(k,2) + stressNew(k,2))*strainInc(k,2) 
+     4   +(stressOld(k,3) + stressNew(k,3))*strainInc(k,3) 
+     5   +(stressOld(k,4) + stressNew(k,4))*strainInc(k,4)*two 
+     6   +(stressOld(k,5) + stressNew(k,5))*strainInc(k,5)*two 
+     7   +(stressOld(k,6) + stressNew(k,6))*strainInc(k,6)*two )
 c
       enerInternNew(k)=enerInternOld(k) + (new_energy/density(k))
 c
 c-----------------------------------------------------------------
           end if ! time .ne. zero
+ 1000   continue
         end do ! end do loop
       return
       end 
